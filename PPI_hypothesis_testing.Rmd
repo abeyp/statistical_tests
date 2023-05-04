@@ -1,0 +1,364 @@
+---
+title: "Paper Replication of Hypothesis Testing on Web-based Positive Psychology Interventions"
+output:
+  html_document: rmarkdown::github_document
+date: "2023-05-03"
+---
+
+Paper: Web-Based Positive Psychology Interventions: A Reexamination of Effectiveness
+
+References:
+
+1.  Woodworth, R. J., O'Brien-Malone, A., Diamond, M. R. and Schüz, B. (2017). Web-based positive psychology interventions: A reexamination of effectiveness. Journal of Clinical Psychology, 73(3), 218--232, DOI: <https://doi.org/10.1002/jclp.22328>
+2.  Woodworth, R. J., O'Brien-Malone, A., Diamond, M. R. and Schüz, B. (2018). Data from, 'Web-based Positive Psychology Interventions: A Reexaminationof Effectiveness'. Journal of Open Psychology Data, DOI: <https://doi.org/10.5334.jopd.35>
+
+Goal: Replicate various hypothesis testing methods for no difference between participants who completed all assessments vs participants who did not complete all assessments.
+
+Intervention Groups:
+
+-   1 "Using Signature Strengths"
+
+-   2 "Three Good Things"
+
+-   3 "Gratitude Visit"
+
+-   4 "Recording early memories" (control condition)
+
+# Load and Clean Data
+
+## Creating New Variable: Status
+
+-   Before testing, I need to load the given datafile and create a new ordinal variable of status where a participant is either a 'dropout' or 'non-dropout'. Dummy variables can also be used afterwards.
+
+Load the data *ahi-cesd.csv* and *participant_info.csv*
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(sjPlot)
+
+library(lsr)
+library(psych)
+library(ggplot2)
+
+# Disable scientific notation:
+options(scipen=999, digits=4)
+
+#Load Files
+ahi_cesd <- read_csv("data/ahi-cesd.csv")
+participant_info <- read_csv("data/participant-info.csv")
+
+#View Files
+head(ahi_cesd)
+head(participant_info)
+```
+
+Using ahi_cesd for all known AHi and CESD scores, creating a new dataframe to perform functions that will help identify each unique participant's status (dropout or non-dropout).
+
+-   Non-dropout defined as a participant with AHI and CESD scores provided in all 6 occasions.
+
+```{r warning=FALSE}
+## count unique id with all recorded ocassion c(1,2,3,4,5)
+
+library(hash)
+
+#create new dataframe of ahi_cesd.csv
+dat <- ahi_cesd
+
+#create a new dictionary {id:occasion}
+h <- hash()
+
+# loop through each id and add the occasion's recorded
+for (i in 1:nrow(dat)) {
+  key <- as.character(dat[i,'id'])
+  if (!has.key(key,h)) {
+    h[key] <- deframe(dat[i,'occasion'])
+  } else {
+    h[key] <- append(h[[key]], deframe(dat[i,'occasion']) )
+  }
+}
+
+#return the count of id that completed all c(1,2,3,4,5) occasions
+completed <- c()
+
+for (i in 1:length(h)) {
+  #access key
+  k <- keys( h[as.character(i)] )
+  
+  #access values
+  v <- values(h[k],USE.NAMES=FALSE, simplify=FALSE)
+  v <- v[[1]]
+  
+  #add key to completed vector
+  if (all(v == c(0,1,2,3,4,5))) {
+    completed = append(completed,i)
+  }
+}
+
+```
+
+Some pre-checks: Participants who completed at least the post-test(occasion == 1)
+
+```{r}
+# COMPLETED AT LEAST THE POSTTEST
+completed_posttest <- c()
+
+for (i in 1:length(h)) {
+  #access key
+  k <- keys( h[as.character(i)] )
+  
+  #access values
+  v <- values(h[k],USE.NAMES=FALSE, simplify=FALSE)
+  v <- v[[1]]
+  
+  #condition for any participant that completed the posttest (1)
+  if (any(v %in% c(1))) {
+    completed_posttest = append(completed_posttest,i)
+  }
+}
+```
+
+Now we have the correct counts of participants who completed all assessments, and an additional check of participants who at least completed the post-test(Occasion = 1).
+
+```{r}
+length(completed_posttest)
+length(completed)
+```
+
+Great! Now that we have created vectors of participant's id under out conditions of completed or not, we can add a new column of dropout or non.dropout to the *participant_info* dataframe.
+
+```{r}
+# ADD NEW COLUMN OF DROPOUT AND NON.DROPOUT TO PARTICIPANTS 
+
+p.dat <- data.frame(participant_info)
+
+p.dat <- participant_info %>%
+  mutate(status = ifelse(id %in% completed, '1', '0'))
+
+#pre_test_dat contains only occurences of Occasion = 0
+pre_test_dat <- ahi_cesd %>%
+  filter(occasion == 0)
+
+#add column for 
+p.dat <- left_join(p.dat, pre_test_dat, by='id')
+
+#select columns needed for the df
+p.dat <- p.dat %>%
+  select(id, intervention = intervention.x, sex, age, educ, income, status, ahiTotal, cesdTotal)
+
+#ensure columns are the correct data type
+p.dat$sex <- as.numeric(p.dat$sex)
+
+head(p.dat)
+```
+
+```{r}
+# ADD NEW COLUMN OF DROPOUT AND NON.DROPOUT TO AHI_CESD DF 
+
+initial.scores.dat <- ahi_cesd %>%
+  filter(occasion == 0) %>%
+  mutate(status = ifelse(id %in% completed, '1', '0')) %>%
+  select(id, status, occasion, elapsed.days,intervention, ahiTotal, cesdTotal)
+
+head(initial.scores.dat)
+```
+
+Done! This table will be the main df to work on various hypothesis testing to see if there is a difference between participants that completed all assessments and participants that did not complete all assessments. This precaution is done so to move forward with the paper's intention-to-treat experiment to test ANOVA on the effects of 3 different positive psychology interventions and a control(placebo) over time.
+
+# T-Test on Initial Happiness and Depression Scores
+
+## Initial Happiness Scores
+
+AHI Scores with t.test
+
+H_0: No difference between AHI scores of dropout and non.dropouts
+
+Checking data for violations of Assumptions of T-Test - relatively equal group sizes - relatively equal variances - interval or continuous variable is normally distributed
+
+Paper: initial happiness scores, t(293) = 0.26, p = .79
+
+```{r}
+#Check equal variances for T-Test
+var.test(ahiTotal ~ status, data = p.dat)
+
+# Shapiro-Wilk normality test for NonDropout's ahiTotal
+with(p.dat, shapiro.test(ahiTotal[status == "1"]))# p = 0.7
+# Shapiro-Wilk normality test for Dropout's ahiTotal
+with(p.dat, shapiro.test(ahiTotal[status == "0"])) # p = 0.9
+
+```
+
+Both tests of equal variance and Shapiro-Wilk normality test provided p-values that were not statistically significant to reject the null hypothesis. continuing the t-test.
+
+```{r}
+res.ahiTotal <- t.test(
+  ahiTotal~status,
+  data = p.dat,
+  var.equal=TRUE,
+  conf.level = 0.95,
+  alternative = "two.sided"
+)
+res.ahiTotal
+res.ahiTotal$p.value
+```
+
+```{r}
+ggstatsplot::ggbetweenstats(data = p.dat, x = status, y = ahiTotal,
+                            var.equal = TRUE,
+                            effsize.type = "d", mean.ci = TRUE,
+                            pairwise.comparisons = FALSE, 
+                            messages = FALSE, bf.message = FALSE,
+                            title = "Initial Happiness Scores", xlab = "Dropout vs Non-Dropout", ylab = "AHI Score")
+```
+
+**Initial AHI scores between dropout and non.dropout groups do not show statistically significant results (p = 0.64) , and we retain the null hypothesis that there is no difference.**
+
+## Initial Depression Scores
+
+CESD Scores with t.test
+
+H_0: No difference between AHI scores of dropout and non.dropouts
+
+Checking data for violations of Assumptions of T-Test - relatively equal group sizes - relatively equal variances - interval or continuous variable is normally distributed
+
+Paper: initial depression scores t(293) = 0.44, p = .66
+
+```{r}
+#Check equal variances for T-Test
+var.test(cesdTotal ~ status, data = p.dat) # p = 0.4
+
+# Shapiro-Wilk normality test for NonDropout's ahiTotal
+with(p.dat, shapiro.test(cesdTotal[status == "1"]))# p = 0.0003
+# Shapiro-Wilk normality test for Dropout's ahiTotal
+with(p.dat, shapiro.test(cesdTotal[status == "0"])) # p = 0.000000007
+```
+
+```{r}
+#Since normality test failed, a wilcoxon test serves as another test of differences
+wilcox.test(cesdTotal ~ status, data = p.dat, alternative = "two.sided")
+
+```
+
+```{r}
+# Initial Depression Scores
+#Paper's initial depression scores t(293) = 0.44, p = .66
+
+res.cesdTotal <- t.test(
+  cesdTotal ~ status,
+  data = p.dat,
+  var.equal=TRUE, 
+  conf.level = 0.95,
+  alternative="two.sided"
+)
+
+res.cesdTotal
+```
+
+```{r}
+ggstatsplot::ggbetweenstats(data = p.dat, x = status, y = cesdTotal,
+                            var.equal = TRUE,
+                            effsize.type = "d", mean.ci = TRUE,
+                            pairwise.comparisons = FALSE, 
+                            messages = FALSE, bf.message = FALSE,
+                            title = "Initial Depression Scores", xlab = "Dropout vs Non-Dropout", ylab = "CESD Score")
+```
+
+# Hypothesis Testing on Demographic Variables
+
+## Difference in Sex with Chi-Square Test
+
+Using Chi-Square Test to see comparison of female and male samples.
+
+Hypothesis: There is no difference between the sample of male and female among dropout and non.dropout participants.
+
+```{r}
+#H_0: 
+#  P_160 = P61 (same probability of male)
+#  P_33 = P_11 (same probability of female)
+
+# Create crosstabulations
+sexfreq <- xtabs(formula = ~sex + status, data = p.dat)
+
+chisq.test(sexfreq, correct = FALSE)    # X-squared = 0.01, df = 1, p-value = 0.92
+# correct = FALSE. logical indicating whether to apply continuity correction when computing test statistic for 2x2 tables. 
+
+
+```
+
+```{r echo=FALSE}
+#Cross-Tab of Sex by Status frequencies. Not enough decimal points.
+sjPlot::tab_xtab(var.row = p.dat$sex, var.col = p.dat$status, title = "Differences in Sex", show.row.prc = TRUE)
+```
+
+## Intervention Groups with Chi-Square Test
+
+X-squared(3, n = 295) = 6.15, p = 0.11
+
+H_0: No difference between intervention groups of dropout and non.dropouts
+
+Issues: not getting the p = 0.11....could be a round up of a round up....
+
+```{r}
+intervention.freq <- xtabs(formula = ~intervention+status, data = p.dat)
+chisq.test(intervention.freq, ) # X-squared = 6.143, p = 0.1046
+
+sjPlot::tab_xtab(
+  var.row = p.dat$intervention, 
+  var.col = p.dat$status, 
+  statistics = "cramer",
+  title = "Differences in Intervention", 
+  show.exp = TRUE,
+  show.row.prc = TRUE)
+
+```
+
+## Difference in Education Level with Wilcoxon Test
+
+Wilcoxon W = 8154, p =.83
+
+H_0: No difference between intervention groups of dropout and non.dropouts
+
+```{r}
+wilcox.test(x = p.dat$educ[p.dat$status == '1'], 
+            y = p.dat$educ[p.dat$status == '0'],
+            alternative = "two.sided")
+
+```
+
+## Difference in Income Level with Wilcoxon Test
+
+Income with wilcoxon test
+Wilcoxon W = 8552, p = .37
+
+H_0: No difference between intervention groups of dropout and non.dropouts
+
+```{r}
+wilcox.test(x = p.dat$income[p.dat$status == '1'], 
+            y = p.dat$income[p.dat$status == '0'],
+            alternative = "two.sided")
+
+```
+
+## Difference in Age with T-Test
+
+H_0: No difference between intervention groups of dropout and non.dropouts
+
+Checking data for violations of Assumptions of T-Test
+- relatively equal group sizes
+- relatively equal variances
+- interval or continuous variable is normally distributed
+
+> Dropouts were on average 5.4 years younger than non-dropouts (M = 42.5 vs. 47.8), Welch t(126.1) = 3.28, p = .001.
+
+```{r}
+
+#Test of equal variance
+var.test(age ~ status, data = p.dat)
+
+t.test(
+  age ~ status, 
+  data = p.dat,
+  var.equal=FALSE, 
+  conf.level = 0.95
+)
+```
