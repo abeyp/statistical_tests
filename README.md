@@ -14,3 +14,8 @@ References:
 Goal: Replicate various hypothesis testing methods for no difference between participants who completed all assessments vs participants who did not complete all assessments.# statistical_tests
 
 
+
+![unnamed-chunk-9-1](https://user-images.githubusercontent.com/87784458/236087868-dda0dcb2-a350-4df1-853a-279713e88568.png)
+
+
+![unnamed-chunk-13-1](https://user-images.githubusercontent.com/87784458/236087951-9278dd77-dc75-4aa8-b376-a33c9288d02d.png)
