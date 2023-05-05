@@ -13,7 +13,12 @@ References:
 2. Woodworth, R. J., O’Brien-Malone, A., Diamond, M. R. and Schüz, B. (2018). Data from, ‘Web-based Positive Psychology Interventions: A Reexaminationof Effectiveness’. Journal of Open Psychology Data, DOI: https://doi.org/10.5334.jopd.35
 Goal: Replicate various hypothesis testing methods for no difference between participants who completed all assessments vs participants who did not complete all assessments.# statistical_tests
 
+# Visualizations from project
 
+### 4x6 Mixed Design Anova of AHI Scores
+![unnamed-chunk-8-1](https://user-images.githubusercontent.com/87784458/236357365-a7d852a9-3f13-4004-8127-9bb43dc12be9.png)
+
+### Initial Happiness and Depression Scores between Dropout and Non.Dropout Participants
 
 ![unnamed-chunk-9-1](https://user-images.githubusercontent.com/87784458/236087868-dda0dcb2-a350-4df1-853a-279713e88568.png)
 
