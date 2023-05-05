@@ -1,0 +1,161 @@
+---
+title: "Replication of Mixed Design ANOVA on Web-Based Positive Psychology Interventions"
+output:
+  html_document: rmarkdown::github_document
+date: "2023-05-03"
+---
+
+Goals for this analysis replication:
+
+1.  (TODO) Means and standard deviations of happiness (AHI) and depression (CES- D) measures for each intervention group on each of the six measurement occasions (pretest, posttest, 1-week follow-up, 1-month follow-up, 3-month follow-up, 6-month follow-up).
+    1.  visual table to summarize the data
+2.  (Done) ANOVA (mixed design analyses of variance)
+    1.   (provide anova table and visuals of testing for assumptions)
+3.  (Done) Visual inspection of the 95% confidence intervals lends support to the conclusions from the mixed-design analyses of variance:
+    1.  visual over continuous spaced time
+4.  (TODO) Multilevel linear mixed-effects models, with maximum-likelihood estimation, were used to relate longitudinal changes in AHI and CES-D scores to intervention group.
+
+For the purpose of direct comparison and replication, we conducted similar analyses, including in the ANOVAs only those participants who completed all the study requirements (N = 72). In the next section, we report additional analyses using all enrolled participants.
+
+## 4x6 Mixed Design ANOVA
+
+### Load Packages
+```{r, results = FALSE}
+# Load the packages:
+
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(gplots)
+library(psych)
+library(emmeans)
+library(nortest)
+library(afex)
+library(ggfortify)
+library(ggResidpanel)
+
+# Disable scientific notation:
+options(scipen=999, digits=4)
+```
+
+### Load CSV
+```{r}
+#Load Files
+ahi_cesd <- read_csv("data/ahi-cesd.csv")
+
+#View Files
+ahi_cesd <- as.data.frame(ahi_cesd)
+head(ahi_cesd)
+```
+
+### Filter for only Non.Dropout Participants
+
+```{r warning=FALSE}
+## count unique id with all recorded ocassion c(1,2,3,4,5)
+
+library(hash)
+
+#create new dataframe of ahi_cesd.csv
+dat <- ahi_cesd
+
+#create a new dictionary {id:occasion}
+h <- hash()
+
+# loop through each id and add the occasion's recorded
+for (i in 1:nrow(dat)) {
+  key <- as.character(dat[i,'id'])
+  if (!has.key(key,h)) {
+    h[key] <- deframe(dat[i,'occasion'])
+  } else {
+    h[key] <- append(h[[key]], deframe(dat[i,'occasion']) )
+  }
+}
+
+#return the count of id that completed all c(1,2,3,4,5) occasions
+completed <- c()
+
+for (i in 1:length(h)) {
+  #access key
+  k <- keys( h[as.character(i)] )
+  
+  #access values
+  v <- values(h[k],USE.NAMES=FALSE, simplify=FALSE)
+  v <- v[[1]]
+  
+  #add key to completed vector
+  if (all(v == c(0,1,2,3,4,5))) {
+    completed = append(completed,i)
+  }
+}
+
+completed
+```
+
+### Create new df of only Non.Dropout Participants for ANOVA
+
+```{r}
+#Create new df to work with
+ahi.df <- ahi_cesd %>%
+  select(id, intervention, occasion, ahiTotal) %>%
+  mutate(status = ifelse(id %in% completed, '1', '0'))
+
+head(ahi.df)
+```
+
+```{r}
+# Factor the predictors
+#Using Signiture Strengths', "Three Good Things", "Gratitude Visit", "Recording early memories"
+
+ahi.df$intervention <- factor(ahi.df$intervention, 
+                              labels = c('Using Signiture Strengths', 
+                                         "Three Good Things", "Gratitude Visit", 
+                                         "Recording early memories"),
+                              levels = c(1,2,3,4), 
+                              ordered = FALSE)
+
+ahi.df$occasion <- factor(ahi.df$occasion, 
+                          labels = c("t0","t7","t14","t38","t98","t189"),
+                          levels = c(0,1,2,3,4,5), 
+                          ordered = TRUE)
+
+ahi.df$intervention <- relevel(ahi.df$intervention, ref=4)
+```
+
+Part 2
+
+```{r}
+# Is the data balanced or unbalanced?
+table(ahi.df$intervention, ahi.df$occasion)
+```
+
+Part 3
+
+```{r warning=FALSE}
+m <- aov_4(ahiTotal ~ intervention*occasion + (occasion|id), type=2, data=ahi.df)
+m
+summary(m)
+
+nice(m,
+     intercept=TRUE,
+     correction = "none")
+```
+
+Replication of the paper's 4x6 mixed-design ANOVA. Intervention ( 4 levels) x Occasion (6 levels) on AHI scores.
+
+Viewing the ANOVA table, intervention and the interaction involving intervention is not statistically significant. Occasion had a statistically significant effect (p = \<0.001). Potentially showing participant scores increasing over time.
+
+```{r}
+#Plot the data
+emmip(m, intervention ~ occasion, CIs=TRUE,
+       xlab="Time",
+      ylab="ahiTotal")
+```
+
+```{r}
+# Post-hoc comparisons and estimated marginal means:
+posthocs <- emmeans(m, specs=pairwise ~ occasion*intervention,  model="multivariate",adjust="tukey")
+
+posthocs$emmeans # Estimated marginal means (EMM)
+posthocs$contrasts %>% 
+  summary(infer = TRUE) # Post-hoc comparisons
+```
