@@ -2,7 +2,7 @@
 
 **Project**
 
-Authors of *Web-based positive psychology interventions: A reexamination of effectiveness.* released their clean datasets of happiness and depression scores in a randomly controlled experiment on positivie psychology interventions over time. I took this as an oppurtunity to replicate the statistical testing in the paper using R.
+The authors of *Web-based positive psychology interventions: A reexamination of effectiveness.* released their clean datasets of happiness and depression scores in a randomly controlled experiment of positivie psychology interventions over time. I took this as an oppurtunity to replicate the statistical findings in the paper using R to reproduce conclusions and casual inference.
 
 **R Code**
 * Best Viewed with plots here! https://rpubs.com/abeyp/1037564
